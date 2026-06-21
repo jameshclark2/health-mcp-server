@@ -2,8 +2,10 @@
 // Swap this module out for a real DB later without touching server.js's tool logic much.
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { randomUUID } from "crypto";
+import { fileURLToPath } from "url";
+import path from "path";
 
-const DB_PATH = process.env.DB_PATH || new URL("./data.json", import.meta.url).pathname;
+const DB_PATH = process.env.DB_PATH || path.join(path.dirname(fileURLToPath(import.meta.url)), "data.json");
 
 const EMPTY_DB = {
   healthProfile: {
