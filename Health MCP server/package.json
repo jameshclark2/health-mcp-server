@@ -1,0 +1,16 @@
+{
+  "name": "health-mcp-server",
+  "version": "1.0.0",
+  "description": "Personal health/nutrition/exercise tracking MCP server for use as a Cowork connector",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test-client.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "express": "^5.2.1",
+    "zod": "^4.4.3"
+  }
+}
