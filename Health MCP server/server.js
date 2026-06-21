@@ -45,9 +45,6 @@ const exerciseSchema = z.object({
   rpe: z.number().min(1).max(10).optional(),
 });
 
-// A fresh McpServer + all tool registrations, created once per client session
-// (the SDK's Server only ever supports being connected to ONE transport at a time,
-// so a shared singleton server breaks as soon as a second concurrent session opens).
 function createServer() {
   const server = new McpServer({ name: "personal-health-coach", version: "1.0.0" });
 
@@ -309,17 +306,12 @@ function createServer() {
   return server;
 }
 
-// ---------- HTTP transport ----------
-// One McpServer + one StreamableHTTPServerTransport per client session, tracked by the
-// session ID the SDK issues on initialize. (Earlier versions of this file tried sharing
-// a single server/transport across all clients, which only ever supports one connection
-// at a time and broke as soon as a second session opened — exactly what happened against
-// the real connector.)
-
 const transports = {}; // sessionId -> transport
 
 async function handleMcpRequest(req, res) {
   const sessionId = req.headers["mcp-session-id"];
+  const method = req.body && req.body.method;
+  console.log(`[mcp] POST method=${method} sessionId=${sessionId || "(none)"} knownSession=${sessionId ? !!transports[sessionId] : "n/a"}`);
   let transport;
 
   if (sessionId && transports[sessionId]) {
@@ -327,12 +319,19 @@ async function handleMcpRequest(req, res) {
   } else if (!sessionId && isInitializeRequest(req.body)) {
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (sid) => { transports[sid] = transport; },
+      onsessioninitialized: (sid) => {
+        console.log(`[mcp] session initialized: ${sid}`);
+        transports[sid] = transport;
+      },
     });
-    transport.onclose = () => { if (transport.sessionId) delete transports[transport.sessionId]; };
+    transport.onclose = () => {
+      console.log(`[mcp] session closed: ${transport.sessionId}`);
+      if (transport.sessionId) delete transports[transport.sessionId];
+    };
     const server = createServer();
     await server.connect(transport);
   } else {
+    console.log(`[mcp] REJECTING request: sessionId=${sessionId || "(none)"} isInit=${isInitializeRequest(req.body)} knownSessions=${Object.keys(transports).join(",") || "(none)"}`);
     res.status(400).json({ jsonrpc: "2.0", error: { code: -32000, message: "Bad Request: No valid session ID provided" }, id: null });
     return;
   }
@@ -349,6 +348,7 @@ async function handleMcpRequest(req, res) {
 
 async function handleSessionRequest(req, res) {
   const sessionId = req.headers["mcp-session-id"];
+  console.log(`[mcp] ${req.method} sessionId=${sessionId || "(none)"} knownSession=${sessionId ? !!transports[sessionId] : "n/a"}`);
   if (!sessionId || !transports[sessionId]) {
     res.status(400).send("Invalid or missing session ID");
     return;
